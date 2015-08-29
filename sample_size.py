@@ -18,7 +18,7 @@ def gen_test_data(mu1, mu0, sigma, p):
     return data
 
 delim = ','
-msg = ''
+msg = []
 default = {'method': 'Wald test', 'alpha':0.05,
            'power':0.95, 'delta':0.05}
 methods2func = {'Equality test':'ss_equality_test', 
@@ -33,19 +33,19 @@ try:
     data_by_rows = read_data(text_data, delim)
     data = np.matrix(data_by_rows)
 except:    
-    msg += 'Failed to open file ' + filename + '\n'
+    msg.append('Failed to open file ' + filename)
     data = gen_test_data(1, 0, 1, 0.4)
 
 
 (arg_msg, pars) = read_args(sys.argv, default) 
-msg += arg_msg
+msg.append(arg_msg)
 
 
 #print(len(text_data))
 
 y = np.matrix(data[0,:].transpose())
 x = np.matrix(data[1,:].transpose())
-print(x.shape, y.shape)
+#print(x.shape, y.shape)
 #data_by_cols = zip(*data_by_rows)
 
 try:
@@ -55,7 +55,9 @@ except:
         
 size = getattr(calcSampleSize, func_name)(y, x, pars)
 #size = sample_size_norm(y, x, pars['alpha'])
-print(msg + 'Estimated sample size is ' + str(size))
+for line in msg:
+    print(line)
+print('Estimated sample size is ' + str(size))
 
 
     

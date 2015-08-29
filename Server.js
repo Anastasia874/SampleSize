@@ -7,6 +7,8 @@ var bodyParser = require('body-parser');
 
 //var newFilename;
 
+var path = require('path');
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({
   extended: true
@@ -67,7 +69,7 @@ app.post('/api/par', function(req,res){
       mode: 'text',
       pythonPath: 'C:/Users/Anastasia/Anaconda/python',
       //pythonOptions: ['-u'],
-      scriptPath: 'C:/Users/Anastasia/Documents/Strijov/Sample size',
+      scriptPath: path.resolve(__dirname),//'C:/Users/Anastasia/Documents/Strijov/Sample size',
       args: [filename, method, alpha_par, power_par, delta]
     };
     PythonShell.run('sample_size.py', options, function (err, results) {
