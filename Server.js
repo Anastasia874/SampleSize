@@ -92,8 +92,8 @@ app.post('/api/par', function(req,res){
   //}
 });
 /*Run the server.*/
-app.listen(3000,function(){
-    console.log("Working on port 3000");
+app.listen(process.env.EXPRESS_PORT || 3000,function(){
+    console.log("Working on port " + process.env.EXPRESS_PORT || 3000);
 });
 
 
