@@ -9,6 +9,14 @@ var bodyParser = require('body-parser');
 
 var path = require('path');
 
+var config;
+try {
+  config = require(path.resolve(__dirname+'/config.json'));
+} catch (ex) {
+  console.log('Warning: config.json file is not found. Using default settings...');
+  config = {};
+}
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({
   extended: true
@@ -67,11 +75,14 @@ app.post('/api/par', function(req,res){
     console.log(req.files);
     var options = {
       mode: 'text',
-      pythonPath: 'C:/Users/Anastasia/Anaconda/python',
+      // pythonPath: 'C:/Users/Anastasia/Anaconda/python',
       //pythonOptions: ['-u'],
       scriptPath: path.resolve(__dirname),//'C:/Users/Anastasia/Documents/Strijov/Sample size',
       args: [filename, method, alpha_par, power_par, delta]
     };
+    if (config.pythonPath)
+      options.pythonPath = config.pythonPath;
+
     PythonShell.run('sample_size.py', options, function (err, results) {
       if (err) throw err;
       //console.log('finished');
@@ -81,8 +92,8 @@ app.post('/api/par', function(req,res){
   //}
 });
 /*Run the server.*/
-app.listen(3000,function(){
-    console.log("Working on port 3000");
+app.listen(process.env.EXPRESS_PORT || 3000,function(){
+    console.log("Working on port " + process.env.EXPRESS_PORT || 3000);
 });
 
 
