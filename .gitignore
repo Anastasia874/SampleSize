@@ -28,5 +28,6 @@ build/Release
 node_modules
 uploads
 resources
+config.json
 
 *.pyc
