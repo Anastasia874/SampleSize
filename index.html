@@ -1,0 +1,53 @@
+<style>
+  .bottom-skip {
+     margin-bottom: 1cm;
+  }
+</style>
+
+<style>
+  .left-skip {
+     margin-left: 0.5cm;
+  }
+</style>
+<h1>Sample Size Calculator</h1>
+<p>To estimate sample size, submit your data in .txt format, choose the alpha value and press Start! button. Default value for alpha is 0.05</p>
+
+<h4>Upload your data:</h4>
+<form id        =  "uploadForm"
+     enctype   =  "multipart/form-data"
+     action    =  "/api/photo"
+     method    =  "post"
+>
+<input type="file" name="userPhoto" />
+<input type="submit" value="Upload Image" name="submit">
+</form>
+<form id        =  "parForm"
+     action    =  "/api/par"
+     method    =  "post"
+>
+
+<h4>Select method:</h4>
+<label for="eq_test">Equality test</label>
+<input type="radio" name="method" id="eq_test" value="Equality test"><br>
+<label>Wald test</label>
+<input type="radio" name="method" id="wald_test" value="Wald test"><br>
+<label>Normality test</label>
+<input type="radio" name="method" id="norm_test" value="Normality test"><br>
+<!--
+<label for="sup_test">Superiority test</label>
+<input type="radio" name="method" id="sup_test" value="Superiority test"><br>
+<label class="left-skip">delta: </label><input type="text" name="sup_delta" value="0.05"><br>
+<label for="sup_test">Equivalence test</label>
+<input type="radio" name="method" id="sup_test" value="Equivalence test"><br>
+<label class="left-skip">delta: </label><input type="text" name="eq_delta" value="0.05"><br>
+!-->
+
+<h4>Specify Alpha and power value:</h4>
+<input type="text" name="alpha" value="0.05">
+<label for="alpha">Alpha</label><br>
+<input type="text" name="power" value="0.95">
+<label for="power">Power</label><br>
+<br>
+<input type="submit" value="Start!" name="submit">
+</form>
+

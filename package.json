@@ -1,0 +1,11 @@
+{
+  "name": "file_upload",
+  "version": "0.0.1",
+  "dependencies": {
+    "body-parser": "^1.13.2",
+    "body-parses": "~1.13.2",
+    "express": "~4.10.2",
+    "multer": "~0.1.6",
+    "python-shell": "^0.1.0"
+  }
+}
