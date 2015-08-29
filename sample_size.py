@@ -19,12 +19,13 @@ def gen_test_data(mu1, mu0, sigma, p):
 
 delim = ','
 msg = []
-default = {'method': 'Wald test', 'alpha':0.05,
+default = {'method': 'Chi2 divergence', 'alpha':0.05,
            'power':0.95, 'delta':0.05}
 methods2func = {'Equality test':'ss_equality_test', 
                 'Normality test': 'sample_size_norm',
                 'Wald test': 'sample_size_wald',
-                'Superiority test':'ss_super_test'}
+                'Superiority test':'ss_super_test',
+                'Chi2 divergence': 'sample_size_chi2'}
 
 try:    
     filename = 'uploads/' #+ sys.argv[1]
@@ -33,30 +34,36 @@ try:
     data_by_rows = read_data(text_data, delim)
     data = np.matrix(data_by_rows)
 except:    
-    msg.append('Failed to open file ' + filename)
+    #msg.append('Failed to open file ' + filename)
+    print('Failed to open file ' + filename + '; generating test data')
     data = gen_test_data(1, 0, 1, 0.4)
 
 
 (arg_msg, pars) = read_args(sys.argv, default) 
-msg.append(arg_msg)
+#msg.append(arg_msg)
+print(arg_msg)
 
 
 #print(len(text_data))
 
 y = np.matrix(data[0,:].transpose())
 x = np.matrix(data[1,:].transpose())
+#nCl = len(np.unique(y))
+m, n = x.shape
+print('Data parameters: ' +  str(m) + ' observations, ' + str(n) + ' feature(s)')
+#print(str(nCl) + ' classes')
 #print(x.shape, y.shape)
 #data_by_cols = zip(*data_by_rows)
 
 try:
     func_name = methods2func[pars['method']]
 except:
-    func_name = 'sample_size_norm'
+    print('Using default method: '+ default['method'])
+    func_name = methods2func[default['method']]
         
 size = getattr(calcSampleSize, func_name)(y, x, pars)
 #size = sample_size_norm(y, x, pars['alpha'])
-for line in msg:
-    print(line)
+
 print('Estimated sample size is ' + str(size))
 
 

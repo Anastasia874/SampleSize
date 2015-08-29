@@ -27,6 +27,8 @@
 >
 
 <h4>Select method:</h4>
+<label>Chi2 divergence test</label>
+<input type="radio" name="method" id="chi2_test" value="hhi2 test"><br>
 <label for="eq_test">Equality test</label>
 <input type="radio" name="method" id="eq_test" value="Equality test"><br>
 <label>Wald test</label>
@@ -44,9 +46,9 @@
 
 <h4>Specify Alpha and power value:</h4>
 <input type="text" name="alpha" value="0.05">
-<label for="alpha">Alpha</label><br>
+<label for="alpha">Alpha (False Negative probability)</label><br>
 <input type="text" name="power" value="0.95">
-<label for="power">Power</label><br>
+<label for="power">Power (1 - False Positive probability)</label><br>
 <br>
 <input type="submit" value="Start!" name="submit">
 </form>
