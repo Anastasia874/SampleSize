@@ -2,15 +2,23 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
 
-def plot_data(y, x):
+def plot_data(y, x, intercept=False):
     if x.ndim == 1 or x.shape[1] == 1:
         x = np.squeeze(x)
         plot_1d_data(y, x)
         return None
-    plt.title("First two dims of the data sample", fontsize='small')
-    plt.scatter(x[:, 0], x[:, 1], marker='o', c=y)
 
+    plt.title("First two dims of the data sample", fontsize='small')
+    if intercept:
+        plt.scatter(x[:, 0], x[:, 1], marker='o', c=y)
+    elif x.shape[1] > 2:
+        plt.scatter(x[:, 1], x[:, 2], marker='o', c=y)
     plt.show()
+
+    # idx = np.argsort(y)
+    # data = np.hstack((y, x))
+    # plt.imshow(data[idx, :], interpolation="none", aspect="auto")
+    # plt.colorbar()
 
 def plot_1d_data(y, x):
     colors = ["b", "g", "r", "c", "m", "k", "y"]

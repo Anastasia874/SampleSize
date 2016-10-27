@@ -207,7 +207,7 @@ class LikelihoodFunc(ProbDistr):
 
             lh, transformedX = func(X=X, y=y, w=w, n_cls=self.n_cls, intercept=self.intercept, norm=norm)
             if self.transformedX is None:
-                self.transformedX = X
+                self.transformedX = transformedX
             return lh
 
         return lh_func
