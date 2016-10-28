@@ -6,93 +6,98 @@ import numpy as np
 from scipy import stats
 from sklearn.preprocessing import normalize
 from sklearn.datasets import make_classification
+from collections import namedtuple
+
+probDistrj = namedtuple("probDistrj", "pd pars idx")
+probDistrList = namedtuple("probDistrList", "pd_list name")
+probDistrXy = namedtuple("probDistrXy", "probs distr")
 
 
+def sample_from_prob_distrj(n_samples, distr):
+    # distr is an instance  probDistrj
+
+    frozen_distr = distr.pd(**distr.pars)
+    z = frozen_distr.rvs(size=int(n_samples))
+
+    return z
 
 class ProbDistr():
 
     def __init__(self, n_feats=1):
         self.n_feats = n_feats
 
-    # def create_distr_by_name(self, distr_name):
-    #     if distr_name == 'uniform':
-    #         distr = stats.uniform()
-    #     elif distr_name == 'exp':
-    #         distr = stats.expon()
-    #     else:
-    #         if distr_name is None:
-    #             print("Feature distribution is not specified! Using multivariate normal")
-    #         distr = stats.multivariate_normal(mean=[0] * self.n_feats, cov=1)
-    #
-    #     return distr
 
-    def create_distr_by_name(self, distr_name, n_dims=None):
+    def create_distr_by_name(self, distr_name, n_dims=None, pars={}):
         if n_dims is None:
             n_dims = self.n_feats
             
-        distr = {}
-        distr["name"] = distr_name
-        distr["mvr"] = False
+
+        if isinstance(distr_name, list):
+            distr = [0] * len(distr_name)
+            for i, d_name in enumerate(distr_name):
+                distr[i] = self.create_distr_by_name(d_name, n_dims=None, pars={"loc":i})
+
+            return distr
+
+        name = distr_name
         if distr_name == 'uniform':
-            distr["pd"] = [stats.uniform() for i in range(n_dims)]
+            pd_list = [probDistrj(stats.uniform, pars, []) for i in range(n_dims)]
         elif distr_name == 'exp':
-            distr["pd"] = [stats.expon() for i in range(n_dims)]
+            pd_list = [probDistrj(stats.expon, pars, []) for i in range(n_dims)]
         elif distr_name == "gamma":
-            distr["pd"] = [stats.gamma() for i in range(n_dims)]
+            pd_list = [probDistrj(stats.gamma, pars, []) for i in range(n_dims)]
+        elif distr_name == "normal" or distr_name == "norm":
+            pd_list = [probDistrj(stats.norm, pars, []) for i in range(n_dims)]
         else:
             if distr_name is None:
                 print("Feature distribution is not specified! Using multivariate normal")
             else:
                 print("Feature distribution {} is not supported. Using multivariate normal".format(distr_name))
-            distr["pd"] = stats.multivariate_normal(mean=[0] * n_dims, cov=1)
-            distr["name"] = "Multivariate normal"
-            distr["mvr"] = True
+            pd_list = [probDistrj(stats.multivariate_normal, {"mean":range(n_dims), "cov":1}, [])]
+            name = "Multivariate normal"
+
+        distr = probDistrList(pd_list, name)
+
+        return distr
+
+
+
+    def check_distr(self, distr, probs):
+
+        if isinstance(distr, probDistrXy):
+            return distr
+
+        if isinstance(distr, list):
+            for d in distr:
+                if not isinstance(d, probDistrList):
+                    print("Type of prob. distr is not supported: received {}, expected probDistrList".format(type(d)))
+                    raise ValueError
+            distr = probDistrXy(probs, distr)
 
 
         return distr
 
-    def check_distr(self, distr):
+    def sample(self, n_samples, distr, return_idx=False):
 
-        distr_attr = list(distr.keys())
+        # if not self.check_distr(distr) :
+        #     raise ValueError
 
-        if not isinstance(distr, dict):
-            print("Probability distribution distr should be a dict")
-            return False
+        n_distr = len(distr.pd_list)
+        z = [0] * n_distr
+        idx = [0] * n_distr
+        last_idx = -1
+        for n in range(n_distr):
+            z[n] = sample_from_prob_distrj(n_samples, distr.pd_list[n])
+            if z[n].ndim == 1:
+                z[n] = z[n][:, None]
+            n_zfeats = z[n].shape[1]
+            idx[n] = range(last_idx + 1, last_idx + 1 + n_zfeats)
+            last_idx += n_zfeats
 
-        if not "pd" in distr_attr:
-            print("Probability distribution is not defined")
-            return False
+        z = np.hstack(z)
 
-        if not "mvr" in distr_attr:
-            print("mvr field is not defined")
-            return False
-
-        if not distr["mvr"]:
-            if not isinstance(distr["pd"], list):
-                print("distr['pd'] for 'mvr = False' should contain a list of generators")
-                distr["pd"] = [distr["pd"]]
-        else:
-            pass
-            # if mvr == True, then distr["pd"] is a single scipy.stats.... prob_gen object
-
-        return True
-
-    def sample(self, n_samples, distr):
-
-        if not self.check_distr(distr) :
-            raise ValueError
-
-        if distr["mvr"]:
-            z = distr["pd"].rvs(size=n_samples)
-
-        else:
-            n_feats = len(distr["pd"])
-            z = [0] * n_feats
-
-            for n in range(self.n_feats):
-                z[n] = distr[n].rvs(size=n_samples)
-            z = np.vstack(z)
-
+        if return_idx:
+            return z, idx
 
         return z
 
@@ -100,185 +105,107 @@ class ProbDistr():
 
 class GenerativeDistribution(ProbDistr):
 
-    def __init__(self, n_feats=1, n_cls=2, x_distr=None, lh_func=None, x_distr_name=None, w_distr=None, probs=None):
+    def __init__(self, n_feats=1, n_cls=2, x_distr=None, x_distr_name=None, w_distr=None, probs=None):
         ProbDistr.__init__(self, n_feats)
-        self.n_cls = n_cls
-        self.x_distr_name = str(x_distr_name)
+
+
+        if x_distr_name is None and x_distr is None:
+            print("Must specify either x_distr or x_distr_name for each class")
+            raise ValueError
+
         self.probs = probs
-        if self.probs is None:
+        if self.probs is None and not n_cls is None:
             self.probs = np.ones(n_cls) / n_cls
+        self.n_cls = len(self.probs)
 
         if not x_distr is None:
-            self.x_distr = x_distr
+            self.x_distr = self.check_distr(x_distr, self.probs)
         else:
-            self.x_distr = self.create_distr_by_name(x_distr_name)
-
-        if not lh_func is None:
-            self.lh_func = lh_func
-            self.lh_func.n_cls = n_cls
-        else:
-            self.lh_func = LikelihoodFunc(func=poly_sigmoid, n_cls=self.n_cls, n_feats=self.n_feats + 4, w_distr=w_distr)
+            self.x_distr = probDistrXy(self.probs, self.create_distr_by_name(x_distr_name))
 
 
-    def sample_data(self, n_samples, distr=None):
-        if distr is None:
-            distr = self.x_distr
 
 
-        X = self.sample(n_samples, distr)
+    def sample_data(self, n_samples):
 
-        if X.ndim == 1:
-            X = X[:, None]
+        distr = self.x_distr
 
-        # self.lh_func.func(X=X)
-        # transfX = self.lh_func.transformedX
 
-        lh = self.lh_func.func(X=X, y=np.ones(X.shape[0]), norm=False)
-        lh = 1/(1 + lh)
-        y = label_by_hist_counts(data=lh, probs=self.probs, nbins=100)
+        n_samples_per_cls = np.ceil(n_samples * np.array(distr.probs))
+        y, X = [], []
+        for cls, cls_n_samples in enumerate(n_samples_per_cls):
 
-        # lh_matrix = np.zeros((n_samples, self.n_cls))
-        # for cls in range(self.n_cls):
-        #     lh_matrix[:, cls] = self.lh_func.func(X=X, y=cls*np.ones(X.shape[0]), w=self.lh_func.opt_pars)
-        #
-        # y = np.argmax(lh_matrix, axis=1)
+            y.append(np.ones(cls_n_samples) * cls)
+            Xcls, idx = self.sample(cls_n_samples, distr.distr[cls], return_idx=True)
+            for i in range(len(distr.distr[cls].pd_list)):
+                distr.distr[cls].pd_list[i] = probDistrj(distr.distr[cls].pd_list[i].pd,
+                                                         distr.distr[cls].pd_list[i].pars, idx[i])
+
+            if Xcls.ndim == 1:
+                Xcls = Xcls[:, None]
+
+            X.append(Xcls)
+
+        idx = range(int(sum(n_samples_per_cls)))
+        np.random.shuffle(idx)
+        idx = idx[:n_samples]
+        y = np.hstack(y)[idx]
+        X = np.vstack(X)[idx, :]
+
+        self.x_distr = distr
 
         return y, X
 
+    def make_y_labels(self, X=None, lh=None, w=None):
+
+        if lh is None:
+            lh = self.likelihood(X)
+
+        y = np.argmax(lh, axis=1)
+
+        return y
+
+
+    def likelihood(self, X, x_distr=None, y=None):
+
+        if x_distr is None:
+            x_distr = self.x_distr
+
+        lh = np.zeros(X.shape[0])
+        lh_y_none = np.zeros((X.shape[0], len(x_distr)))
+        for cls in range(len(x_distr)):
+            lh_by_class = np.zeros((X.shape[0], len(x_distr[cls].pd_list)))
+
+            for j, xdj in enumerate(x_distr[cls].pd_list):
+                frozen_distr = xdj.pd(**xdj.par)
+                lh_by_class[:, j] = frozen_distr.pdf(X[:, xdj.idx[j]])
+
+            lh_y_none[:, cls] = np.prod(lh_by_class, axis=1)
+
+            if not y is None:
+                lh[y == cls] = lh_y_none[y == cls, cls]
+
+        if y is None:
+            return lh_y_none
+
+        return lh
 
 
 
-class LikelihoodFunc(ProbDistr):
 
-    def __init__(self, func, n_cls, n_feats=None, opt_pars=None, w_distr=None, y_probs=None, intercept=True):
-        ProbDistr.__init__(self, n_feats)
-        self.intercept = intercept
-
-
-        if not y_probs is None:
-            n_cls = len(y_probs)
-            y_probs = np.cumsum(y_probs) / n_cls
-
-        self.opt_pars = opt_pars
-        if not opt_pars is None:
-            self.n_feats, self.n_cls = opt_pars.shape
-            if not self.n_cls is None and not self.n_cls == n_cls:
-                print("Number of classes {0} specified explicitly does not correspond to opt_pars shape[1]={1}"
-                      .format(n_cls, self.n_cls))
-                
-            if not n_feats is None and not self.n_feats == n_feats:
-                print("Number of features {0} specified explicitly does not correspond to opt_pars shape[0]={1}"
-                      .format(n_feats, self.n_feats))
-        else:
-            self.n_cls = n_cls
-            self.n_feats = n_feats
-        
-        if w_distr is None and not self.n_cls is None:
-            if y_probs is None:
-                y_probs = np.cumsum(np.ones(self.n_cls)/n_cls)
-            self.w_distr = self.create_distr_by_name("Gamma", n_dims=1)
-
-        elif self.n_feats is None:
-            print("Specify either n_feats and n_cls, w_distr or opt_pars")
-            raise ValueError
-        
-        if self.opt_pars is None:
-            opt_pars = self.sample(n_feats, distr=self.w_distr)[:, None]
-            opt_pars = np.tile(opt_pars, n_cls)
-            opt_pars = normalize(opt_pars, axis=0)
-            self.opt_pars = np.vstack((y_probs, opt_pars))
-
-        
-        
-        #self.opt_pars = normalize(self.opt_pars, axis=0)
-
-        self.n_feats = self.opt_pars.shape[0]
-        self.func = self.make_likelihood_fn(func)
-        self.transformedX = None
-        self.w_distr = w_distr
-
-
-
-    def make_likelihood_fn(self, func):
-        def lh_func(X, y, w=None, norm=True):
-
-            if w is None:
-                w = self.opt_pars
-
-            lh, transformedX = func(X=X, y=y, w=w, n_cls=self.n_cls, intercept=self.intercept, norm=norm)
-            if self.transformedX is None:
-                self.transformedX = transformedX
-            return lh
-
-        return lh_func
-
-
-def label_by_hist_counts(data, probs, nbins=100):
-
-    data = np.squeeze(data)
-    n_cls = len(probs)
-    hist, bins = np.histogram(data, bins=nbins, density=True)
-
-    hist = np.cumsum(hist) / np.sum(hist)
-    probs = np.cumsum(np.hstack((0, probs)))
-    new_bins = np.zeros(len(probs))
-    for cls, prb in enumerate(probs[1:]):
-        new_bins[cls + 1] = max(bins[hist <= prb])
-
-    y = np.digitize(data, new_bins) - 1
-    y[y >= n_cls] = n_cls - 1
-    return y
-
-
-
-# def poly_sigmoid(X, y=None, w=None, n_cls=None, intercept=True):
-#
-#     ndims = w.shape[0]
-#     polyX = []
-#
-#     if intercept:
-#         ndims = ndims -1
-#         polyX = [np.ones((X.shape[0], 1))]
-#
-#     n_degrees = ndims // X.shape[1]
-#     for nd in range(n_degrees):
-#         polyX.append(np.power(X, nd))
-#
-#     X = np.hstack(polyX)
-#
-#     if y is None:
-#         return None, X
-#
-#     probs = 1./(1 + np.exp(-np.dot(X, w)))
-#     return probs, X
-
-
-def poly_sigmoid(X, y=None, w=None, n_cls=None, intercept=True, norm=True):
-
-    ndims = w.shape[0]
-    polyX = []
-
-    if intercept:
-        ndims = ndims -1
-        polyX = [np.ones((X.shape[0], 1))]
-
-    n_degrees = ndims // X.shape[1]
-    for nd in range(n_degrees):
-        polyX.append(np.power(X, nd))
-
-    X = np.hstack(polyX)
-
-    if y is None:
-        return None, X
+def sigmoid(X, y, w=None, n_cls=None, norm=True):
 
     probs = [np.exp(np.dot(X , w[:, k])) for k in range(n_cls)]
     y_probs = np.hstack([probs[int(yi)][i] for i, yi in enumerate(y)])
+
     if norm:
         y_probs = y_probs / np.sum(probs, axis=0)
     #mask = np.vstack([list(range(n_cls)) == yi for yi in list(y)])
 
 
-    return y_probs, X
+    return y_probs
+
+
 
 
 def generate_sample(n_samples, gen_distr=None):
