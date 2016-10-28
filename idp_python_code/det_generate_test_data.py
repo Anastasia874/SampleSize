@@ -14,18 +14,6 @@ class ProbDistr():
     def __init__(self, n_feats=1):
         self.n_feats = n_feats
 
-    # def create_distr_by_name(self, distr_name):
-    #     if distr_name == 'uniform':
-    #         distr = stats.uniform()
-    #     elif distr_name == 'exp':
-    #         distr = stats.expon()
-    #     else:
-    #         if distr_name is None:
-    #             print("Feature distribution is not specified! Using multivariate normal")
-    #         distr = stats.multivariate_normal(mean=[0] * self.n_feats, cov=1)
-    #
-    #     return distr
-
     def create_distr_by_name(self, distr_name, n_dims=None):
         if n_dims is None:
             n_dims = self.n_feats
@@ -104,11 +92,12 @@ class GenerativeDistribution(ProbDistr):
 
     def __init__(self, n_feats=1, n_cls=2, x_distr=None, lh_func=None, x_distr_name=None, w_distr=None, probs=None):
         ProbDistr.__init__(self, n_feats)
-        self.n_cls = n_cls
+
         self.x_distr_name = str(x_distr_name)
         self.probs = probs
-        if self.probs is None:
+        if self.probs is None and not n_cls is None:
             self.probs = np.ones(n_cls) / n_cls
+        self.n_cls = len(self.probs)
 
         if not x_distr is None:
             self.x_distr = x_distr
@@ -136,7 +125,7 @@ class GenerativeDistribution(ProbDistr):
         lh = self.lh_func.func(X=X)
         self.cls_intercepts = label_by_hist_counts(data=lh, probs=self.probs, nbins=100)
         y = self.make_y_labels(lh=lh, w=self.lh_func.opt_pars)
-        print("Generated class ratios {}, expected {}".format([sum(y==i) for i in range(self.n_cls)], [self.probs]))
+        print("Generated class ratios {}, expected {}".format([np.mean(y==i) for i in range(self.n_cls)], [self.probs]))
 
         return y, X
 
@@ -147,7 +136,7 @@ class GenerativeDistribution(ProbDistr):
             
         n_cls = len(self.cls_intercepts) - 1
         y = np.digitize(lh, self.cls_intercepts) - 1
-        print("Out of class samples: {}\%".format(np.mean(y >= n_cls)*100))
+        print("Class ratios: {}\%".format([np.mean(y == i)*100 for i in set(y)]))
         y[y >= n_cls] = n_cls - 1
 
         return y
