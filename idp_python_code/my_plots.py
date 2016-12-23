@@ -1,6 +1,64 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
+import itertools
+
+
+def plot_2dim_data_clf(data, labeled_data=None, labels=None, ax=None, dim0=0, dim1=1):
+    color_iter = itertools.cycle(['navy', 'c', 'cornflowerblue', 'gold',
+                                  'darkorange'])
+    if data.X.ndim < 2:
+        raise ValueError("plot_2dim_data only valid for 2D data, got {}".format(data.X.ndim))
+
+    if ax is None:
+        f, ax = plt.subplots(nrows=1, ncols=1)
+
+    y = data.y
+    X = data.X[:, [dim0, dim1]]
+
+    for cls, col in zip(data.classes, color_iter):
+        if not np.any(y == cls):
+            continue
+        ax.scatter(X[y == cls, 0], X[y == cls, 1], 0.8, color=col, label=str(cls))
+        if not np.any(labels == cls) or labels is None:
+            continue
+        ax.scatter(labeled_data[labels == cls, 0], labeled_data[labels == cls, 1],
+                   s=80, facecolors='none', edgecolors=col)
+
+    return ax
+
+
+def plot_1d_data_reg(data, labeled_data=None, labels=None, ax=None, dim0=0, dim1=1, col='navy'):
+
+    X = data.X[:, dim0]
+    y = data.y
+
+    if ax is None:
+        f, ax = plt.subplots(nrows=1, ncols=1)
+
+    ax.scatter(X, y, color=col, label="Unlabeled data")
+    if hasattr(data, "coef"):
+        line = np.sum(data.coef * data.X, axis=1)
+        ax.plot(X, line, label="True model")
+
+    if labeled_data is not None and len(labels) > 0:
+        ax.scatter(labeled_data[:, dim0], labels,
+                   s=80, facecolors='none', edgecolors="c", label="Labeled data")
+
+    return ax
+
+
+# def plot_2dim_data_reg(data, labeled_data, labels, ax, dim0=0, dim1=1, col='navy'):
+#     if data.X.ndim < 2:
+#         raise ValueError("plot_2dim_data only valid for 2D data, got {}".format(data.X.ndim))
+#
+#     y = data.y
+#     X = data.X[:, [dim0, dim1]]
+#
+#     X, Y =
+#
+#     return ax
+
 
 def plot_data(y, x, intercept=False):
     if x.ndim == 1 or x.shape[1] == 1:
@@ -9,7 +67,7 @@ def plot_data(y, x, intercept=False):
         return None
 
     plt.title("First two dims of the data sample", fontsize='small')
-    if intercept:
+    if not intercept:
         plt.scatter(x[:, 0], x[:, 1], marker='o', c=y)
     elif x.shape[1] > 2:
         plt.scatter(x[:, 1], x[:, 2], marker='o', c=y)
@@ -19,6 +77,7 @@ def plot_data(y, x, intercept=False):
     # data = np.hstack((y, x))
     # plt.imshow(data[idx, :], interpolation="none", aspect="auto")
     # plt.colorbar()
+
 
 def plot_1d_data(y, x):
     colors = ["b", "g", "r", "c", "m", "k", "y"]
@@ -56,6 +115,7 @@ def plot_mcmc_hists(samples, prior_func, post_func):
     plt.xlim([0,1])
     plt.legend(loc='best')
     plt.show()
+
 
 def plot_mcmc_convergene(samples, labels):
     # Convergence of multiple chains
