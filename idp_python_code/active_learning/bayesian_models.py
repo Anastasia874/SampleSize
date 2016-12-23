@@ -4,10 +4,11 @@ import numpy as np
 from scipy import stats
 
 
-class PosteriorDistribution(object):
+class GaussianPrior(object):
 
     def __init__(self, prior_covariance=np.ones(1), data_covariance=None, targets_averaging="optimal",
                  n_parameters_to_sample=500):
+
         self.prior_mean = np.zeros(1)
         self.prior_covariance = prior_covariance
 
@@ -28,51 +29,6 @@ class PosteriorDistribution(object):
         self.posterior_covariance_ = None
         self.problem_type = None
         self.posterior_parameters_sample = None
-
-    def update_posterior_density(self, parameters, x):
-        data = np.vstack((self.X, x))
-        posterior_covariance = self.posterior_covariance(data)
-        if self.targets_averaging.lower() == "optimal":
-            targets = np.hstack((self.y, self.predict(x)))
-            posterior_mean = self.posterior_mean(data, targets, posterior_covariance)
-            return self.posterior_density_by_object(parameters, posterior_mean, posterior_covariance)
-
-        if self.targets_averaging.lower() == "average":
-            return self.posterior_density_target_averaging(parameters, posterior_covariance, data)
-
-        raise ValueError("targets_averaging should be either 'optimal' or 'average', got {}"
-                         .format(self.targets_averaging))
-
-    def posterior_density_target_averaging(self, parameters, posterior_covariance, data):
-        posterior_probs_by_y = np.zeros((len(self.target_range), len(parameters)))
-        for i, y in enumerate(self.target_range):
-            targets = np.hstack((self.y, y))
-            posterior_mean = self.posterior_mean(data, targets, posterior_covariance)
-            posterior_probs_by_y[i, :] = self.posterior_density_by_object(parameters, posterior_mean,
-                                                                          posterior_covariance)
-        return np.mean(posterior_probs_by_y, axis=0)
-
-    def posterior_mean(self, *args, **kwargs):
-        return self.prior_mean
-
-    def posterior_covariance(self, *args, **kwargs):
-        return self.prior_covariance
-
-    def posterior_density_by_object(self, *args, **kwargs):
-        raise AttributeError("posterior density must be overridden")
-
-    def predict(self, x):
-        pass
-
-
-class GaussianPrior(PosteriorDistribution):
-
-    def __init__(self, prior_covariance=np.ones(1), data_covariance=None, targets_averaging="optimal",
-                 n_parameters_to_sample=500):
-        PosteriorDistribution.__init__(self, prior_covariance, data_covariance,
-                                       targets_averaging, n_parameters_to_sample)
-        self.posterior_alpha = None
-        self.posterior_beta = None
 
     def fit(self, X, y):
         if self.inv_prior_cov is None:
@@ -99,6 +55,29 @@ class GaussianPrior(PosteriorDistribution):
 
     def posterior_density_by_object(self, parameters, posterior_mean, posterior_cov):
         return stats.multivariate_normal.pdf(parameters, mean=posterior_mean, cov=posterior_cov)
+
+    def update_posterior_density(self, parameters, x):
+        data = np.vstack((self.X, x))
+        posterior_covariance = self.posterior_covariance(data)
+        if self.targets_averaging.lower() == "optimal":
+            targets = np.hstack((self.y, self.predict(x)))
+            posterior_mean = self.posterior_mean(data, targets, posterior_covariance)
+            return self.posterior_density_by_object(parameters, posterior_mean, posterior_covariance)
+
+        if self.targets_averaging.lower() == "average":
+            return self.posterior_density_target_averaging(parameters, posterior_covariance, data)
+
+        raise ValueError("targets_averaging should be either 'optimal' or 'average', got {}"
+                         .format(self.targets_averaging))
+
+    def posterior_density_target_averaging(self, parameters, posterior_covariance, data):
+        posterior_probs_by_y = np.zeros((len(self.target_range), len(parameters)))
+        for i, y in enumerate(self.target_range):
+            targets = np.hstack((self.y, y))
+            posterior_mean = self.posterior_mean(data, targets, posterior_covariance)
+            posterior_probs_by_y[i, :] = self.posterior_density_by_object(parameters, posterior_mean,
+                                                                          posterior_covariance)
+        return np.mean(posterior_probs_by_y, axis=0)
 
     def posterior_density(self, data, parameters=None):
         if parameters is None:
@@ -146,15 +125,107 @@ class GaussianPrior(PosteriorDistribution):
         return y
 
 
-class BinBetaPrior(PosteriorDistribution):
+class BinBetaPrior(object):
+    def __init__(self, prior_a=2, prior_b=2, data_covariance=None, targets_averaging="average",
+                 n_parameters_to_sample=500, save_updates=True):
+        self.prior_a = prior_a
+        self.prior_b = prior_b
 
-    def __init__(self, prior_covariance=np.ones(1), data_covariance=None, targets_averaging="average",
-                 n_parameters_to_sample=500):
-        PosteriorDistribution.__init__(self, prior_covariance, data_covariance,
-                                       targets_averaging, n_parameters_to_sample)
+        # self.data_mean = data_mean
+        self.data_covariance = data_covariance
+        self.inv_prior_cov = None
+        self.inv_data_cov = None
+        self.type = None
+        self.targets_averaging = targets_averaging
+        self.n_parameters_to_sample = n_parameters_to_sample
 
-    def posterior_density_by_object(self, parameters, posterior_mean, posterior_cov):
-        pass
+        self.n_feats = None
+        self.X = None
+        self.y = None
+        self.target_range = None
+        self.classes = None
+        self.posterior_mean_ = None
+        self.posterior_covariance_ = None
+        self.problem_type = None
+        self.posterior_parameters_sample = None
+        self.posterior_a_ = None
+        self.posterior_b_ = None
+        self.w = None
+        self.save_updates = None
+        self.coefs = None
+        self.ps = None
+
+    def posterior_density(self, data, parameters):
+        if parameters is None:
+            if self.posterior_parameters_sample is None:
+                self.posterior_parameters_sample = self.sample_posterior_params()
+            parameters = self.posterior_parameters_sample
+
+        predictions = self.predict(data)
+        posterior_probs = np.zeros((len(parameters), len(data)))
+        for i, y in enumerate(predictions):
+            posterior_a_ = self.posterior_a(y, self.posterior_a_)
+            posterior_b_ = self.posterior_a(y, self.posterior_b_)
+            posterior_probs[:, i] = self.posterior_density_by_object(parameters, posterior_a_, posterior_b_)
+
+        return posterior_probs
+
+    def posterior_density_by_object(self, parameters, posterior_a_=None, posterior_b_=None):
+        return stats.beta.pdf(parameters, posterior_a_, posterior_b_)
+
+    def posterior_a(self, data, a):
+        return a + np.sum(data)
+
+    def posterior_b(self, data, b):
+        return b + len(data) - np.sum(data)
+
+    def prior_density(self, parameters=None):
+        if parameters is None:
+            if self.posterior_parameters_sample is None:
+                self.posterior_parameters_sample = self.sample_posterior_params()
+            parameters = self.posterior_parameters_sample
+        return stats.beta.pdf(parameters, self.prior_a, self.prior_b)
+
+    def fit(self, X, y):
+        self.w = self.optimal_w(X, y)
+        self.posterior_a_ = self.posterior_a(y, self.prior_a)
+        self.posterior_b_ = self.posterior_b(y, self.prior_b)
+
+        if self.save_updates:
+            if self.ps is None:
+                self.ps = self.bernoulli_p()
+                self.coefs = self.w
+            else:
+                self.coefs = np.vstack((self.coefs, self.w))
+                self.ps = np.hstack((self.ps, self.bernoulli_p()))
+
+
+    def optimal_w(self, X, y):
+        from sklearn.linear_model import LogisticRegression
+        post_mean = (self.prior_a + np.sum(y))/(self.prior_a + self.prior_b + len(y))
+        data_cov = np.linalg.inv(np.dot(X.T, X))
+
+        lr = LogisticRegression().fit(X,y)
+        print("w: cos: Logistic model to BinBeta model {}".format(np.cos(lr.coef_[0], np.dot(np.mean(X, axis=0), data_cov) * post_mean)))
+        print("p: Logistic model {}, BinBeta model {}".format(lr.intercept_[0], post_mean))
+
+        return np.dot(np.mean(X, axis=0), data_cov) * post_mean
+
+    def sample_posterior_params(self, n_samples=None):
+        n_samples = n_samples or self.n_parameters_to_sample
+        return stats.beta.rvs(size=n_samples, a=self.posterior_a_, b=self.posterior_b_)
+
+    def decision_function(self, X):
+        return np.dot(self.w,  X.T)
+
+    def bernoulli_p(self):
+        return float(self.posterior_a_) / float(self.posterior_a_ + self.posterior_b_)
+
+    def predict(self, X):
+        return self.decision_function(X) > self.bernoulli_p()
+
+    def predict_proba(self, X):
+        return 1 / (1 + np.exp(self.bernoulli_p() - self.decision_function(X)))
 
 
 def adjust_covariance_dimensions(covariance, n_feats):
