@@ -346,7 +346,10 @@ def _evaluate_clf_predictions(predictions, true_labels):
         results["sensitivity"] = 0
     else:
         results["sensitivity"] = float(results["tp"]) / float(results["tp"] + results["fn"])
-    results["specificity"] = float(results["tn"]) / float(results["tn"] + results["fp"])
+    if results["tn"] == 0:
+        results["specificity"] = 0
+    else:
+        results["specificity"] = float(results["tn"]) / float(results["tn"] + results["fp"])
 
     for k in results.keys():
         if k not in ["confusion_matrix", "tp", "fp", "tn", "fn"]:
@@ -362,4 +365,4 @@ def _evaluate_clf_predictions(predictions, true_labels):
 
 
 if __name__ == "__main__":
-    run_experiments_hold_out(n_samples=1000, num_runs=2, upto=100)
+    run_experiments_hold_out(n_samples=1000, num_runs=5, upto=200)

@@ -62,7 +62,8 @@ class MaxEntropySampling(BaseLearner):
 
 
 class LindleyInformation(BaseLearner):
-    def __init__(self, dataset_, model=None, rebuild_model_at_each_iter=True, update_parameters_sample=True):
+    def __init__(self, dataset_, model=None, rebuild_model_at_each_iter=True, update_parameters_sample=True,
+                 min_prob=1e-15):
         if model is None:
             model = bayesian_models.GaussianPrior()
         BaseLearner.__init__(self, dataset_, model, rebuild_model_at_each_iter, "LindleyInformation")
@@ -70,6 +71,7 @@ class LindleyInformation(BaseLearner):
                            "which provide maximum expected information gain"
         self.model.posterior_parameters_sample = None
         self.update_parameters_sample = update_parameters_sample
+        self.min_prob = min_prob
 
     def query_function(self, n_samples):
         if not hasattr(self.model, "posterior_density"):
@@ -78,9 +80,18 @@ class LindleyInformation(BaseLearner):
         posterior_probs = self.model.posterior_density(self.dataset.unlabeled_data,
                                                        self.model.posterior_parameters_sample)
         prior_probs = self.model.prior_density(self.model.posterior_parameters_sample)
+        posterior_probs = _clip_zeros(posterior_probs, self.min_prob)
+        prior_probs = _clip_zeros(prior_probs, self.min_prob)
         if self.update_parameters_sample:
             self.model.posterior_parameters_sample = None
-        information_gain = np.sum(posterior_probs * (np.log(posterior_probs.T) - np.log(prior_probs)).T, axis=0)
+        if prior_probs.ndim == 1:
+            prior_probs = np.tile(prior_probs[:, None], (1, posterior_probs.shape[1]))
+        information_gain = np.sum(posterior_probs * (np.log(posterior_probs) - np.log(prior_probs)), axis=0)
 
         idx_to_label = np.argsort(information_gain)[-n_samples:]
         return self.dataset.unlabeled_idx[idx_to_label]
+
+
+def _clip_zeros(x, min_value):
+    x[x < min_value] = min_value
+    return x
