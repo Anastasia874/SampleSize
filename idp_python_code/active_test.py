@@ -42,7 +42,7 @@ from active_learning import query_strategies
 from active_learning import bayesian_models
 
 
-def run_experiments_hold_out(n_samples=1000, n_test_samples=500, out_path="results", upto=None, step_size=25,
+def run_experiments_hold_out(n_samples=1000, n_test_samples=500, out_path="tmp", upto=None, step_size=25,
                              initial_size=4, batch_size=5, pick_balanced_initial_set=True,
                              num_runs=10):
     """
@@ -69,7 +69,7 @@ def run_experiments_hold_out(n_samples=1000, n_test_samples=500, out_path="resul
     """
     data, learners = None, []
     results = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
-    model = bayesian_models.BinBetaPrior()
+    model = bayesian_models.BinBetaPrior(same_posterior_params=True)
     for run in range(num_runs):
         print("\n********\non run {}".format(run))
 
@@ -81,7 +81,8 @@ def run_experiments_hold_out(n_samples=1000, n_test_samples=500, out_path="resul
         data = dataset.build_gaussian_mixture_dataset(n_samples=n_samples)
         #test_data = dataset.build_gaussian_mixture_dataset(n_samples=n_test_samples)
         #data = dataset.build_linear_regression_dataset(n_samples=n_samples, n_features=3, n_informative=1, noise=15)
-        data, test_data = data.train_test_split(n_test_samples=n_test_samples)
+        #data, test_data = data.train_test_split(n_test_samples=n_test_samples)
+        test_data = data
         total_num_examples = len(data.X)
 
         if upto is None:
@@ -93,9 +94,10 @@ def run_experiments_hold_out(n_samples=1000, n_test_samples=500, out_path="resul
 
         # Set up the learners, add to list. Here is where you would instantiate new learners.
         learners = [query_strategies.LindleyInformation(dataset_=data, rebuild_model_at_each_iter=False, model=model),
-                    query_strategies.RandomSampling(dataset_=data, rebuild_model_at_each_iter=False, model=model)]
-                    # query_strategies.LeastConfidentSampling(dataset_=data, rebuild_model_at_each_iter=False, model=model),
-                    # query_strategies.MaxEntropySampling(dataset_=data, rebuild_model_at_each_iter=False, model=model)]
+                    # query_strategies.RandomSampling(dataset_=data, rebuild_model_at_each_iter=False, model=None, name="LogR"),
+                    query_strategies.RandomSampling(dataset_=data, rebuild_model_at_each_iter=False, model=model),
+                    query_strategies.LeastConfidentSampling(dataset_=data, rebuild_model_at_each_iter=False, model=model),
+                    query_strategies.MaxEntropySampling(dataset_=data, rebuild_model_at_each_iter=False, model=model)]
 
         output_files = [open("{}//{}_{}.txt".format(out_path, learner.name, run), 'w') for learner in learners]
 
@@ -142,7 +144,7 @@ def run_experiments_hold_out(n_samples=1000, n_test_samples=500, out_path="resul
                 learner.active_learn(cur_step_size, batch_size=cur_batch_size)
 
             num_labels_so_far += cur_step_size
-            print("\n***labeled {} examples out of {} so far***".format(num_labels_so_far, upto))
+            print("\n*** labeled {} examples out of {} so far ***".format(num_labels_so_far, upto))
 
             results = report_results(learners, test_data, num_labels_so_far, output_files, results)
         # close files
@@ -151,112 +153,17 @@ def run_experiments_hold_out(n_samples=1000, n_test_samples=500, out_path="resul
     report_final_results(data, learners, results, out_path)
 
 
-def plot_selection_results(data, learners):
-    n_subplots = len(learners) + 1
-    n_rows = n_subplots // 2 + n_subplots % 2
-    f, ax = plt.subplots(n_rows, 2, figsize=(12, 3.5*n_rows))
-    plt.subplots_adjust(right=0.9)
-
-    if n_rows == 1:
-        ax = ax[None, :]
-
-    ax[0, 0] = plot_2dim_data(data, None, None, ax[0, 0])
-    ax[0, 0].set_title("Data")
-    row, col = 0, 1
-    for learner in learners:
-        ax[row, col] = plot_2dim_data(data, learner.labeled_instances, learner.labels, ax[row, col])
-        ax[row, col].set_title(learner.name)
-        col = (col + 1) % 2
-        row += (col + 1) % 2
-    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    # plt.show()
-    return f
-
-
-def plot_2dim_data(data, labeled_data, labels, ax, dim0=0, dim1=1):
-    if data.type == "classification":
-        return my_plots.plot_2dim_data_clf(data, labeled_data, labels, ax, dim0, dim1)
-
-    if data.type == "regression":
-        return my_plots.plot_1d_data_reg(data, labeled_data, labels, ax, dim0, dim1)
-
-    return ax
-
-
-def plot_clf_metrics(results):
-    f, ax = plt.subplots(2, 2, figsize=(12, 7))
-    plt.subplots_adjust(right=0.8)
-
-    for learner, res in list(results.items()):
-        sizes, f1, auc, sensitivity, specificity = [], [], [], [], []
-        for size, d in list(res.items()):
-            sizes.append(size)
-            f1.append(np.mean(d["f1"]))
-            auc.append(np.mean(d["auc"]))
-            sensitivity.append(np.mean(d["sensitivity"]))
-            specificity.append(np.mean(d["specificity"]))
-
-        idx = np.argsort(sizes)
-        sizes = np.array(sizes)[idx]
-        f1 = np.array(f1)[idx]
-        auc = np.array(auc)[idx]
-        sensitivity = np.array(sensitivity)[idx]
-        specificity = np.array(specificity)[idx]
-        ax[0, 0].plot(sizes, f1, label=learner)
-        ax[0, 1].plot(sizes, auc, label=learner)
-        ax[1, 0].plot(sizes, sensitivity, label=learner)
-        ax[1, 1].plot(sizes, specificity, label=learner)
-
-    ax[0, 0].set_title("F1 score")
-    ax[0, 1].set_title("AUC")
-    ax[1, 0].set_title("Sensitivity")
-    ax[1, 1].set_title("Specificity")
-
-    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    # plt.show()
-    return f
-
-
-def plot_reg_metrics(results):
-    f, ax = plt.subplots(1, 3, figsize=(15, 4))
-    plt.subplots_adjust(right=0.8, left=0)
-
-    for learner, res in list(results.items()):
-        sizes, mae, mse, r2 = [], [], [], []
-        for size, d in list(res.items()):
-            sizes.append(size)
-            mae.append(np.mean(d["mae"]))
-            mse.append(np.mean(d["mse"]))
-            r2.append(np.mean(d["r2"]))
-
-        idx = np.argsort(sizes)
-        sizes = np.array(sizes)[idx]
-        mae = np.array(mae)[idx]
-        mse = np.array(mse)[idx]
-        r2 = np.array(r2)[idx]
-        ax[0].plot(sizes, mae, label=learner)
-        ax[1].plot(sizes, mse, label=learner)
-        ax[2].plot(sizes, r2, label=learner)
-
-    ax[0].set_title("MAE")
-    ax[1].set_title("MSE")
-    ax[2].set_title("R2")
-
-    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    return f
-
-
 def report_final_results(data, learners, results, out_path):
     for learner in learners:
         if hasattr(learner.model, "coefs") and hasattr(learner, "ps"):
             my_plots.animate_clf_results(data, learner.model)
-    f_selected_data = plot_selection_results(data, learners)
+    f_selected_data = my_plots.plot_selection_results(data, learners)
     if data.type == "classification":
-        f_metrics = plot_clf_metrics(results)
+        f_metrics = my_plots.plot_clf_metrics(results)
         f_metrics.savefig(os.path.join(out_path, "clf_results.png"))
         plt.close(f_metrics)
     if data.type == "regression":
-        f_metrics = plot_reg_metrics(results)
+        f_metrics = my_plots.plot_reg_metrics(results)
         f_metrics.savefig(os.path.join(out_path, "reg_results.png"))
         plt.close(f_metrics)
 
@@ -365,4 +272,4 @@ def _evaluate_clf_predictions(predictions, true_labels):
 
 
 if __name__ == "__main__":
-    run_experiments_hold_out(n_samples=1000, num_runs=5, upto=200)
+    run_experiments_hold_out(n_samples=1000, num_runs=20, upto=200, initial_size=20)

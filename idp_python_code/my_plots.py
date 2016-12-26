@@ -1,7 +1,120 @@
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import numpy as np
 from scipy import stats
 import itertools
+
+
+def plot_selection_results(data, learners):
+    n_subplots = len(learners) + 1
+    n_rows = n_subplots // 2 + n_subplots % 2
+    f, ax = plt.subplots(n_rows, 2, figsize=(12, 3.5*n_rows))
+    plt.subplots_adjust(right=0.9)
+
+    if n_rows == 1:
+        ax = ax[None, :]
+
+    ax[0, 0] = plot_2dim_data(data, None, None, ax[0, 0])
+    ax[0, 0].set_title("Data")
+    row, col = 0, 1
+    for learner in learners:
+        ax[row, col] = plot_2dim_data(data, learner.labeled_instances, learner.labels, ax[row, col])
+        ax[row, col].set_title(learner.name)
+        col = (col + 1) % 2
+        row += (col + 1) % 2
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    # plt.show()
+    return f
+
+
+def plot_2dim_data(data, labeled_data, labels, ax, dim0=0, dim1=1):
+    if data.type == "classification":
+        return plot_2dim_data_clf(data, labeled_data, labels, ax, dim0, dim1)
+
+    if data.type == "regression":
+        return plot_1d_data_reg(data, labeled_data, labels, ax, dim0, dim1)
+    return ax
+
+
+def plot_clf_metrics(results):
+    f, ax = plt.subplots(2, 2, figsize=(12, 7))
+    plt.subplots_adjust(right=0.75, left=0.1)
+
+    for learner, res in list(results.items()):
+        sizes, f1, auc, sensitivity, specificity = [], [], [], [], []
+        f1_std, auc_std, sensitivity_std, specificity_std = [], [], [], []
+        for size, d in list(res.items()):
+            sizes.append(size)
+            f1.append(np.mean(d["f1"]))
+            f1_std.append(np.std(d["f1"]))
+            auc.append(np.mean(d["auc"]))
+            auc_std.append(np.std(d["auc"]))
+            sensitivity.append(np.mean(d["sensitivity"]))
+            sensitivity_std.append(np.std(d["sensitivity"]))
+            specificity.append(np.mean(d["specificity"]))
+            specificity_std.append(np.std(d["sensitivity"]))
+
+        idx = np.argsort(sizes)
+        sizes = np.array(sizes)[idx]
+        f1 = np.array(f1)[idx]
+        auc = np.array(auc)[idx]
+        sensitivity = np.array(sensitivity)[idx]
+        specificity = np.array(specificity)[idx]
+        l = ax[0, 0].plot(sizes, f1, lw=2, label=learner)
+        ax[0, 0].fill_between(sizes, f1 - f1_std, f1 + f1_std, alpha=0.1, color=l[0]._color)
+        l = ax[0, 1].plot(sizes, auc, lw=2, label=learner)
+        ax[0, 1].fill_between(sizes, auc - auc_std, auc + auc_std, alpha=0.1, color=l[0]._color)
+        l = ax[1, 0].plot(sizes, sensitivity, lw=2, label=learner)
+        ax[1, 0].fill_between(sizes, sensitivity - sensitivity_std, sensitivity + sensitivity_std,
+                              alpha=0.1, color=l[0]._color)
+        l = ax[1, 1].plot(sizes, specificity, lw=2, label=learner)
+        ax[1, 1].fill_between(sizes, specificity - specificity_std, specificity + specificity_std,
+                              alpha=0.1, color=l[0]._color)
+
+    ax[0, 0].set_title("F1 score")
+    ax[0, 1].set_title("AUC")
+    ax[1, 0].set_title("Sensitivity")
+    ax[1, 1].set_title("Specificity")
+
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    # plt.show()
+    return f
+
+
+def plot_reg_metrics(results):
+    f, ax = plt.subplots(1, 3, figsize=(15, 4))
+    plt.subplots_adjust(right=0.8, left=0)
+
+    for learner, res in list(results.items()):
+        sizes, mae, mse, r2 = [], [], [], []
+        mae_std, mse_std, r2_std = [], [], []
+        for size, d in list(res.items()):
+            sizes.append(size)
+            mae.append(np.mean(d["mae"]))
+            mse.append(np.mean(d["mse"]))
+            r2.append(np.mean(d["r2"]))
+            mae_std.append(np.std(d["mae"]))
+            mse_std.append(np.std(d["mse"]))
+            r2_std.append(np.std(d["r2"]))
+
+        idx = np.argsort(sizes)
+        sizes = np.array(sizes)[idx]
+        mae = np.array(mae)[idx]
+        mse = np.array(mse)[idx]
+        r2 = np.array(r2)[idx]
+        l = ax[0].plot(sizes, mae, label=learner)
+        ax[0].fill_between(sizes, mae + mae_std, mae + mae_std, alpha=0.1, color=l[0]._color)
+        l = ax[1].plot(sizes, mse, label=learner)
+        ax[0].fill_between(sizes, mse + mse_std, mse + mse_std, alpha=0.1, color=l[0]._color)
+        l = ax[2].plot(sizes, r2, label=learner)
+        ax[0].fill_between(sizes, mse + mse_std, mse + mse_std, alpha=0.1, color=l[0]._color)
+
+    ax[0].set_title("MAE")
+    ax[1].set_title("MSE")
+    ax[2].set_title("R2")
+
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    return f
 
 
 def plot_2dim_data_clf(data, labeled_data=None, labels=None, ax=None, dim0=0, dim1=1):
@@ -46,6 +159,28 @@ def plot_1d_data_reg(data, labeled_data=None, labels=None, ax=None, dim0=0, dim1
                    s=80, facecolors='none', edgecolors="c", label="Labeled data")
 
     return ax
+
+
+# # Init only required for blitting to give a clean slate.
+# def init():
+#     line.set_ydata(np.ma.array(x, mask=True))
+#     return line,
+
+def animate_clf_results(data, learner, dim0=0, dim1=1):
+    fig, ax = plt.subplots()
+
+    ax = plot_2dim_data_clf(data, ax=ax, dim0=dim0, dim1=dim1)
+    line = ax.plot(data.X[:, dim0], np.ones(len(data.X)) * np.mean(data.X[:, dim1]))
+
+    def animate(coef_p):
+        coef, p = coef_p[0], coef_p[1]
+        line.set_ydata(np.dot(coef, data.X.T) - p)  # update the data
+        return line,
+
+    frames = zip(learner.coefs, learner.ps)
+    ani = animation.FuncAnimation(fig, animate, frames,  # init_func=init,
+                                  interval=25, blit=True)
+    plt.show()
 
 
 # def plot_2dim_data_reg(data, labeled_data, labels, ax, dim0=0, dim1=1, col='navy'):

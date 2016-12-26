@@ -40,8 +40,12 @@ class BaseLearner(object):
         self.rebuild_model_at_each_iter = rebuild_model_at_each_iter
 
         if model is None:
-            from sklearn.linear_model import LogisticRegression
-            self.model = LogisticRegression()
+            if self.dataset.type.lower() == "classification":
+                from sklearn.linear_model import LogisticRegression
+                self.model = LogisticRegression()
+            elif self.dataset.type.lower() == "regression":
+                from sklearn.linear_model import LinearRegression
+                self.model = LinearRegression()
         if hasattr(self.model, "problem_type"):
             self.model.problem_type = self.dataset.type
         if hasattr(self.model, "classes"):

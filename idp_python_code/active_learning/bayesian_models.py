@@ -130,7 +130,7 @@ class GaussianPrior(object):
 
 class BinBetaPrior(object):
     def __init__(self, prior_a=2, prior_b=2, data_covariance=None, targets_averaging="average",
-                 n_parameters_to_sample=100, save_updates=True):
+                 n_parameters_to_sample=100, save_updates=True, same_posterior_params=True):
         self.prior_a = prior_a
         self.prior_b = prior_b
 
@@ -141,6 +141,7 @@ class BinBetaPrior(object):
         self.type = None
         self.targets_averaging = targets_averaging
         self.n_parameters_to_sample = n_parameters_to_sample
+        self.same_posterior_params = same_posterior_params
 
         self.n_feats = None
         self.X = None
@@ -158,23 +159,35 @@ class BinBetaPrior(object):
         self.coefs = []
         self.ps = []
 
+    def fit(self, X, y):
+        self.X = X
+        self.y = y
+        self.w, self.p = self.optimal_w(X, y)
+        self.posterior_a_ = self.posterior_a(y, self.prior_a)
+        self.posterior_b_ = self.posterior_b(y, self.prior_b)
+
+        if self.save_updates:
+            self.coefs.append(self.w)
+            self.ps.append(self.p)
+
+    def optimal_w(self, X, y):
+        lr = LogisticRegression().fit(X, y)
+        return lr.coef_[0], lr.intercept_[0]
+
     def posterior_density(self, data, parameters):
         predictions = self.predict(data)
         if parameters is None:
             if self.posterior_parameters_sample is None:
-                self.posterior_parameters_sample = []
-                state = random.getstate()
-                for x in data:
-                    random.setstate(state)
-                    self.posterior_parameters_sample.append(self.sample_posterior_params(x))
-                self.posterior_parameters_sample = np.vstack(self.posterior_parameters_sample).T
+                self.posterior_parameters_sample = self.sample_posterior_params(data)
 
-            parameters = self.posterior_parameters_sample
+        if self.posterior_parameters_sample.ndim == 1:
+            self.posterior_parameters_sample = np.tile(self.posterior_parameters_sample[:, None], (1, len(data)))
 
+        parameters = self.posterior_parameters_sample
         posterior_probs = np.zeros((len(parameters), len(data)))
         for i, y in enumerate(predictions):
-            # posterior_a_ = self.posterior_a(y, self.posterior_a_)
-            # posterior_b_ = self.posterior_a(y, self.posterior_b_)
+            posterior_a_ = self.posterior_a(y, self.posterior_a_)
+            posterior_b_ = self.posterior_a(y, self.posterior_b_)
             posterior_probs[:, i] = self.posterior_density_by_object(parameters[:, i])  #, posterior_a_, posterior_b_)
 
         return posterior_probs
@@ -205,22 +218,13 @@ class BinBetaPrior(object):
             parameters = self.posterior_parameters_sample
         return stats.beta.pdf(parameters, self.prior_a, self.prior_b)
 
-    def fit(self, X, y):
-        self.X = X
-        self.y = y
-        self.w, self.p = self.optimal_w(X, y)
-        self.posterior_a_ = self.posterior_a(y, self.prior_a)
-        self.posterior_b_ = self.posterior_b(y, self.prior_b)
+    def quadratic_sample_posterior_params(self, data, n_samples=None):
+        posterior_sample = []
+        for x in data:
+            posterior_sample.append(self.quadratic_sample_posterior_params(x))
+        return np.vstack(posterior_sample).T
 
-        if self.save_updates:
-            self.coefs.append(self.w)
-            self.ps.append(self.p)
-
-    def optimal_w(self, X, y):
-        lr = LogisticRegression().fit(X, y)
-        return lr.coef_[0], lr.intercept_[0]
-
-    def sample_posterior_params(self, x, n_samples=None):
+    def quadratic_sample_posterior_params_by_x(self, x, n_samples=None):
         # Since we only know the distribution of wX | X, y, we need to bootstrap (X, y) obtain the sample of w
         n_samples = n_samples or self.n_parameters_to_sample
         posterior_sample = []
@@ -230,6 +234,26 @@ class BinBetaPrior(object):
             bX, by = resample(self.X, self.y)
             if len(np.unique(by)) < len(self.classes):
                 bX, by = self.resample_with_noise()
+            predictions = self.predict(bX, w=mdl.coef_[0], p=mdl.intercept_[0])
+            posterior_sample.append(np.mean(predictions))
+
+        # return stats.beta.rvs(size=n_samples, a=self.posterior_a_, b=self.posterior_b_)
+        return np.hstack(posterior_sample)
+
+    def sample_posterior_params(self, data, n_samples=None):
+        # Since we only know the distribution of wX | X, y, we need to bootstrap (X, y) obtain the sample of w
+
+        if not self.same_posterior_params:
+            return self.quadratic_sample_posterior_params(data, n_samples)
+
+        n_samples = n_samples or self.n_parameters_to_sample
+        posterior_sample = []
+
+        for n in range(n_samples):
+            bX, by = resample(self.X, self.y)
+            if len(np.unique(by)) < len(self.classes):
+                bX, by = self.resample_with_noise()
+            mdl = LogisticRegression().fit(bX, by)
             predictions = self.predict(bX, w=mdl.coef_[0], p=mdl.intercept_[0])
             posterior_sample.append(np.mean(predictions))
 
@@ -253,12 +277,7 @@ class BinBetaPrior(object):
         return float(self.posterior_a_) / float(self.posterior_a_ + self.posterior_b_)
 
     def predict(self, X, w=None, p=None):
-        # import matplotlib.pyplot as plt
-        # lr = LogisticRegression().fit(self.X, self.y)
-        # plt.plot(self.predict_proba(X))
-        # plt.plot(lr.predict_proba(X))
-        # plt.show()
-        return self.predict_proba(X, w=w, p=p) > 0.5  # self.bernoulli_p()
+        return self.predict_proba(X, w=w, p=p) > self.bernoulli_p()
 
     def predict_proba(self, X, w=None, p=None):
         return 1 / (1 + np.exp(-self.decision_function(X, w=w, p=p)))

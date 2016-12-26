@@ -7,8 +7,8 @@ from base_learner import BaseLearner
 
 class RandomSampling(BaseLearner):
 
-    def __init__(self, dataset_, model=None, rebuild_model_at_each_iter=True):
-        BaseLearner.__init__(self, dataset_, model, rebuild_model_at_each_iter, "Random")
+    def __init__(self, dataset_, model=None, rebuild_model_at_each_iter=True, name=""):
+        BaseLearner.__init__(self, dataset_, model, rebuild_model_at_each_iter, "Random"+name)
         self.description = "RandomSampling selects new samples at random at each step"
 
     def query_function(self, n_samples):
@@ -16,13 +16,14 @@ class RandomSampling(BaseLearner):
 
 
 class LeastConfidentSampling(BaseLearner):
-    def __init__(self, dataset_, model=None, rebuild_model_at_each_iter=True):
-        BaseLearner.__init__(self, dataset_, model, rebuild_model_at_each_iter, "LeastConfident")
+    def __init__(self, dataset_, model=None, rebuild_model_at_each_iter=True, name=""):
+        BaseLearner.__init__(self, dataset_, model, rebuild_model_at_each_iter, "LeastConfident"+name)
         if self.dataset.type == "classification" and len(self.dataset.classes) > 2:
             raise Exception('Least confident sampling is only defined for 2-class problems, this one has {} classes'.
                             format(len(self.dataset.classes)))
         self.description = "LeastConfidentSampling chooses those samples from the pool, " \
                            "where the model is least confident"
+        
 
     def query_function(self, n_samples):
         conf = self.model_confidence(self.dataset.unlabeled_data)
@@ -38,8 +39,8 @@ class LeastConfidentSampling(BaseLearner):
 
 
 class MaxEntropySampling(BaseLearner):
-    def __init__(self, dataset_, model=None, rebuild_model_at_each_iter=True):
-        BaseLearner.__init__(self, dataset_, model, rebuild_model_at_each_iter, "MaxEntropy")
+    def __init__(self, dataset_, model=None, rebuild_model_at_each_iter=True, name=""):
+        BaseLearner.__init__(self, dataset_, model, rebuild_model_at_each_iter, "MaxEntropy"+name)
         self.description = "MaxEntropySampling chooses those samples from the pool, " \
                            "where the model the entropy of p(y|x) is the highest"
 
@@ -63,10 +64,10 @@ class MaxEntropySampling(BaseLearner):
 
 class LindleyInformation(BaseLearner):
     def __init__(self, dataset_, model=None, rebuild_model_at_each_iter=True, update_parameters_sample=True,
-                 min_prob=1e-15):
+                 min_prob=1e-15, name=""):
         if model is None:
             model = bayesian_models.GaussianPrior()
-        BaseLearner.__init__(self, dataset_, model, rebuild_model_at_each_iter, "LindleyInformation")
+        BaseLearner.__init__(self, dataset_, model, rebuild_model_at_each_iter, "LindleyInformation"+name)
         self.description = "LindleyInformation chooses those samples from the pool, " \
                            "which provide maximum expected information gain"
         self.model.posterior_parameters_sample = None
