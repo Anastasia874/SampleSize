@@ -28,6 +28,24 @@ def build_gaussian_mixture_dataset(n_samples=1000, means=None, covariance=None):
     return Dataset(X, y, name="Test data (gaussian mixture)", type="classification")
 
 
+def build_dataset_from_gaussian_quantiles(mean=None, cov=1.0, n_samples=100, n_features=2, n_classes=2):
+    X, y = datasets.make_gaussian_quantiles(n_samples=n_samples, mean=mean, cov=cov, n_features=n_features,
+                                            n_classes=n_classes)
+
+    return Dataset(X, y, name="Test data (gaussian quantiles)", type="classification")
+
+
+def build_clf_dataset(n_samples=100, n_features=5, n_informative=2, n_redundant=2, n_repeated=0, n_classes=2,
+                           n_clusters_per_class=2, weights=None, flip_y=0.01, class_sep=1.0, shift=0.0, scale=1.0):
+
+    X, y = datasets.make_classification(n_samples=n_samples, n_features=n_features, n_informative=n_informative,
+                                        n_redundant=n_redundant, n_repeated=n_repeated, n_classes=n_classes,
+                                        n_clusters_per_class=n_clusters_per_class, weights=weights, flip_y=flip_y,
+                                        class_sep=class_sep, shift=shift, scale=scale)
+
+    return Dataset(X, y, name="Test data (sklearn classification)", type="classification")
+
+
 def build_linear_regression_dataset(n_samples=1000, n_features=1, n_informative=1, noise=10):
     X, y, coef = datasets.make_regression(n_samples=n_samples, n_features=n_features,
                                           n_informative=n_informative, noise=noise,
@@ -86,8 +104,8 @@ class Dataset:
         self.labeled_idx = np.hstack((self.labeled_idx, ids_to_label))
 
         flip_coin = np.random.rand(len(ids_to_label)) < error_rate
-
         self.unlabeled_data = self.X[self.unlabeled_idx]
+
         self.labeled_data = np.vstack((self.labeled_data, self.X[ids_to_label]))
         new_labels, noisy_labels = self.y[ids_to_label], self.y[ids_to_label] + flip_coin  # FIXIT
         self.labels = np.hstack((self.labels, noisy_labels))
