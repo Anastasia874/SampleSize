@@ -30,6 +30,7 @@
 from __future__ import print_function
 import os
 import copy
+import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -69,7 +70,6 @@ def run_experiments_hold_out(n_samples=1000, n_test_samples=500, out_path="tmp",
     """
     data, learners = None, []
     results = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
-    model = bayesian_models.BinBetaPrior(same_posterior_params=True)
     for run in range(num_runs):
         print("\n********\non run {}".format(run))
 
@@ -78,9 +78,11 @@ def run_experiments_hold_out(n_samples=1000, n_test_samples=500, out_path="tmp",
         if not os.path.isdir(out_path):
             os.mkdir(out_path)
 
-        data = dataset.build_gaussian_mixture_dataset(n_samples=n_samples)
-        #test_data = dataset.build_gaussian_mixture_dataset(n_samples=n_test_samples)
-        #data = dataset.build_linear_regression_dataset(n_samples=n_samples, n_features=3, n_informative=1, noise=15)
+        # Set up the learners, add to list. Here is where you would instantiate new learners.
+        # data, learners = _init_learners_lindley_versions(n_samples)
+        data, learners = _init_learners_clf_all(n_samples)
+        # data, learners = _init_learners_reg_all(n_samples)
+
         #data, test_data = data.train_test_split(n_test_samples=n_test_samples)
         test_data = data
         total_num_examples = len(data.X)
@@ -91,13 +93,6 @@ def run_experiments_hold_out(n_samples=1000, n_test_samples=500, out_path="tmp",
         hold_out_size = len(test_data.X)
 
         print("using {} out of {} instances for test set".format(hold_out_size, total_num_examples))
-
-        # Set up the learners, add to list. Here is where you would instantiate new learners.
-        learners = [query_strategies.LindleyInformation(dataset_=data, rebuild_model_at_each_iter=False, model=model),
-                    # query_strategies.RandomSampling(dataset_=data, rebuild_model_at_each_iter=False, model=None, name="LogR"),
-                    query_strategies.RandomSampling(dataset_=data, rebuild_model_at_each_iter=False, model=model),
-                    query_strategies.LeastConfidentSampling(dataset_=data, rebuild_model_at_each_iter=False, model=model),
-                    query_strategies.MaxEntropySampling(dataset_=data, rebuild_model_at_each_iter=False, model=model)]
 
         output_files = [open("{}//{}_{}.txt".format(out_path, learner.name, run), 'w') for learner in learners]
 
@@ -154,20 +149,27 @@ def run_experiments_hold_out(n_samples=1000, n_test_samples=500, out_path="tmp",
 
 
 def report_final_results(data, learners, results, out_path):
-    for learner in learners:
-        if hasattr(learner.model, "coefs") and hasattr(learner, "ps"):
-            my_plots.animate_clf_results(data, learner.model)
+    # for learner in learners:
+    #     if hasattr(learner.model, "coefs") and hasattr(learner, "ps"):
+    #         my_plots.animate_clf_results(data, learner.model)
     f_selected_data = my_plots.plot_selection_results(data, learners)
     if data.type == "classification":
         f_metrics = my_plots.plot_clf_metrics(results)
         f_metrics.savefig(os.path.join(out_path, "clf_results.png"))
+        pickle.dump(f_metrics, open("clf_results.fig.pickle", "wb"))
         plt.close(f_metrics)
     if data.type == "regression":
-        f_metrics = my_plots.plot_reg_metrics(results)
-        f_metrics.savefig(os.path.join(out_path, "reg_results.png"))
+        f_metrics = my_plots.plot_reg_metrics(results, std=False)
+        f_metrics.savefig(os.path.join(out_path, "reg_results_no_std.png"))
+        pickle.dump(f_metrics, open("reg_results_no_std.fig.pickle", "wb"))
+        plt.close(f_metrics)
+        f_metrics = my_plots.plot_reg_metrics(results, std=True)
+        f_metrics.savefig(os.path.join(out_path, "reg_results_std.png"))
+        pickle.dump(f_metrics, open("reg_results_std.fig.pickle", "wb"))
         plt.close(f_metrics)
 
     f_selected_data.savefig(os.path.join(out_path, "selection_results.png"))
+    pickle.dump(f_selected_data, open("selection_results.fig.pickle", "wb"))
     plt.close(f_selected_data)
     # FIXIT add .tex report
 
@@ -263,6 +265,42 @@ def _evaluate_clf_predictions(predictions, true_labels):
             print("{}: {}".format(k, results[k]))
 
     return results
+
+
+def _init_learners_clf_all(n_samples):
+    model = bayesian_models.BinBetaPrior(same_posterior_params=True)
+    #data = dataset.build_gaussian_mixture_dataset(n_samples=n_samples)
+    data = dataset.build_clf_dataset(n_samples=n_samples, n_clusters_per_class=2)
+    learners = [query_strategies.LindleyInformation(dataset_=data, rebuild_model_at_each_iter=False, model=model),
+                query_strategies.RandomSampling(dataset_=data, rebuild_model_at_each_iter=False, model=model),
+                query_strategies.LeastConfidentSampling(dataset_=data, rebuild_model_at_each_iter=False, model=model),
+                query_strategies.MaxEntropySampling(dataset_=data, rebuild_model_at_each_iter=False, model=model)]
+
+    return data, learners
+
+
+def _init_learners_reg_all(n_samples):
+    model = bayesian_models.GaussianPrior()
+    data = dataset.build_linear_regression_dataset(n_samples=n_samples, n_features=3, n_informative=1, noise=15)
+    learners = [query_strategies.LindleyInformation(dataset_=data, rebuild_model_at_each_iter=False, model=model),
+                query_strategies.RandomSampling(dataset_=data, rebuild_model_at_each_iter=False, model=model),
+                query_strategies.LeastConfidentSampling(dataset_=data, rebuild_model_at_each_iter=False, model=model),
+                query_strategies.MaxEntropySampling(dataset_=data, rebuild_model_at_each_iter=False, model=model)]
+
+    return data, learners
+
+
+def _init_learners_lindley_versions(n_samples):
+    data = dataset.build_gaussian_mixture_dataset(n_samples=n_samples)
+    mdl_same = bayesian_models.BinBetaPrior(same_posterior_params=True)
+    mdl_var = bayesian_models.BinBetaPrior(same_posterior_params=False)
+    learners = [query_strategies.LindleyInformation(dataset_=data, rebuild_model_at_each_iter=False,
+                                                    model=mdl_same, name="same"),
+                query_strategies.LindleyInformation(dataset_=data, rebuild_model_at_each_iter=False,
+                                                    model=mdl_var, name="quad"),
+                query_strategies.RandomSampling(dataset_=data, rebuild_model_at_each_iter=False, model=None)]
+
+    return data, learners
 
 
 # def write_out_results(results, outf, size):
