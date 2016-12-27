@@ -220,8 +220,9 @@ class BinBetaPrior(object):
 
     def quadratic_sample_posterior_params(self, data, n_samples=None):
         posterior_sample = []
+
         for x in data:
-            posterior_sample.append(self.quadratic_sample_posterior_params(x))
+            posterior_sample.append(self.quadratic_sample_posterior_params_by_x(x, n_samples))
         return np.vstack(posterior_sample).T
 
     def quadratic_sample_posterior_params_by_x(self, x, n_samples=None):
@@ -230,6 +231,7 @@ class BinBetaPrior(object):
         posterior_sample = []
 
         mdl = LogisticRegression().fit(np.vstack((self.X, x)), np.hstack((self.y, self.predict(x))))
+        # mdl = LogisticRegression().fit(np.vstack((self.X, x)), np.hstack((self.y, self.predict(x))))
         for n in range(n_samples):
             bX, by = resample(self.X, self.y)
             if len(np.unique(by)) < len(self.classes):

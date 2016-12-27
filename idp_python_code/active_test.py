@@ -269,8 +269,9 @@ def _evaluate_clf_predictions(predictions, true_labels):
 
 def _init_learners_clf_all(n_samples):
     model = bayesian_models.BinBetaPrior(same_posterior_params=True)
-    #data = dataset.build_gaussian_mixture_dataset(n_samples=n_samples)
-    data = dataset.build_clf_dataset(n_samples=n_samples, n_clusters_per_class=2)
+    # data = dataset.build_gaussian_mixture_dataset(n_samples=n_samples)
+    # data = dataset.build_dataset_from_gaussian_quantiles(n_samples=n_samples, n_features=3)
+    data = dataset.build_clf_dataset(n_samples=n_samples, n_clusters_per_class=2, n_features=20)
     learners = [query_strategies.LindleyInformation(dataset_=data, rebuild_model_at_each_iter=False, model=model),
                 query_strategies.RandomSampling(dataset_=data, rebuild_model_at_each_iter=False, model=model),
                 query_strategies.LeastConfidentSampling(dataset_=data, rebuild_model_at_each_iter=False, model=model),
@@ -310,4 +311,4 @@ def _init_learners_lindley_versions(n_samples):
 
 
 if __name__ == "__main__":
-    run_experiments_hold_out(n_samples=1000, num_runs=20, upto=200, initial_size=20)
+    run_experiments_hold_out(n_samples=1000, num_runs=20, upto=200, initial_size=4, step_size=10)

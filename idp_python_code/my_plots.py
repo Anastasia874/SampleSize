@@ -81,7 +81,7 @@ def plot_clf_metrics(results):
     return f
 
 
-def plot_reg_metrics(results):
+def plot_reg_metrics(results, std=False):
     f, ax = plt.subplots(1, 3, figsize=(15, 4))
     plt.subplots_adjust(right=0.8, left=0)
 
@@ -102,12 +102,15 @@ def plot_reg_metrics(results):
         mae = np.array(mae)[idx]
         mse = np.array(mse)[idx]
         r2 = np.array(r2)[idx]
-        l = ax[0].plot(sizes, mae, label=learner)
-        ax[0].fill_between(sizes, mae + mae_std, mae + mae_std, alpha=0.1, color=l[0]._color)
-        l = ax[1].plot(sizes, mse, label=learner)
-        ax[0].fill_between(sizes, mse + mse_std, mse + mse_std, alpha=0.1, color=l[0]._color)
-        l = ax[2].plot(sizes, r2, label=learner)
-        ax[0].fill_between(sizes, mse + mse_std, mse + mse_std, alpha=0.1, color=l[0]._color)
+        l = ax[0].plot(sizes, mae, lw=2, label=learner)
+        if std:
+            ax[0].fill_between(sizes, mae + mae_std, mae - mae_std, alpha=0.1, color=l[0]._color)
+        l = ax[1].plot(sizes, mse, lw=2, label=learner)
+        if std:
+            ax[1].fill_between(sizes, mse + mse_std, mse - mse_std, alpha=0.1, color=l[0]._color)
+        l = ax[2].plot(sizes, r2, lw=2, label=learner)
+        if std:
+            ax[2].fill_between(sizes, r2 + r2_std, r2 - r2_std, alpha=0.1, color=l[0]._color)
 
     ax[0].set_title("MAE")
     ax[1].set_title("MSE")
@@ -151,12 +154,13 @@ def plot_1d_data_reg(data, labeled_data=None, labels=None, ax=None, dim0=0, dim1
 
     ax.scatter(X, y, color=col, label="Unlabeled data")
     if hasattr(data, "coef"):
-        line = np.sum(data.coef * data.X, axis=1)
-        ax.plot(X, line, label="True model")
+        idx = np.argsort(X)
+        line = data.coef[dim0] * X[idx]
+        ax.plot(X[idx], line, label="True model")
 
     if labeled_data is not None and len(labels) > 0:
         ax.scatter(labeled_data[:, dim0], labels,
-                   s=80, facecolors='none', edgecolors="c", label="Labeled data")
+                   s=80, facecolors='none', edgecolors="r", label="Labeled data")
 
     return ax
 
