@@ -23,7 +23,6 @@ class LeastConfidentSampling(BaseLearner):
                             format(len(self.dataset.classes)))
         self.description = "LeastConfidentSampling chooses those samples from the pool, " \
                            "where the model is least confident"
-        
 
     def query_function(self, n_samples):
         conf = self.model_confidence(self.dataset.unlabeled_data)
@@ -42,22 +41,29 @@ class MaxEntropySampling(BaseLearner):
     def __init__(self, dataset_, model=None, rebuild_model_at_each_iter=True, name=""):
         BaseLearner.__init__(self, dataset_, model, rebuild_model_at_each_iter, "MaxEntropy"+name)
         self.description = "MaxEntropySampling chooses those samples from the pool, " \
-                           "where the model the entropy of p(y|x) is the highest"
+                           "where the model entropy of p(y|x) is the highest"
 
     def query_function(self, n_samples):
         probs = self.model_confidence(self.dataset.unlabeled_data)
 
+        if np.any(probs > 1) or np.any(probs < 0):
+            probs -= np.min(probs)
+            probs /= np.max(probs)
         if probs.ndim == 1:
-            probs /= np.sum(probs)  # normalize probs to [0, 1]
             probs = np.vstack((probs, 1-probs)).T
-        else:
-            probs /= np.sum(probs, axis=1)[:, None] # normalize probs to [0, 1]
+
         entropy = -np.sum(probs*np.log(probs), axis=1)
 
         idx_to_label = np.argsort(entropy)[-n_samples:]
 
-        # if n_samples == 1:
-        #     return [self.dataset.unlabeled_idx[idx_to_label]]
+        # import matplotlib.pyplot as plt
+        # predictions = self.model.predict(self.dataset.X[self.dataset.unlabeled_idx])
+        # true_labels = self.dataset.y[self.dataset.unlabeled_idx]
+        # plt.scatter(entropy[true_labels == 0], np.zeros(np.sum([true_labels == 0])), c="b")
+        # plt.scatter(entropy[predictions == 0], np.zeros(np.sum([predictions == 0])), s=80, facecolors='none', edgecolors="b")
+        # plt.scatter(entropy[true_labels == 1], np.ones(np.sum([true_labels == 1])), c="r")
+        # plt.scatter(entropy[predictions == 1], np.ones(np.sum([predictions == 1])), s=80, facecolors='none', edgecolors="r")
+        # plt.show()
 
         return self.dataset.unlabeled_idx[idx_to_label]
 
@@ -66,7 +72,10 @@ class LindleyInformation(BaseLearner):
     def __init__(self, dataset_, model=None, rebuild_model_at_each_iter=True, update_parameters_sample=True,
                  min_prob=1e-15, name=""):
         if model is None:
-            model = bayesian_models.GaussianPrior()
+            if dataset_.type == "classification":
+                model = bayesian_models.BinBetaPrior(same_posterior_params=True)
+            if dataset_.type == "regression":
+                model = bayesian_models.GaussianPrior()
         BaseLearner.__init__(self, dataset_, model, rebuild_model_at_each_iter, "LindleyInformation"+name)
         self.description = "LindleyInformation chooses those samples from the pool, " \
                            "which provide maximum expected information gain"
