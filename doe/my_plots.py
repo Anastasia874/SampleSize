@@ -36,9 +36,10 @@ def plot_2dim_data(data, labeled_data, labels, ax, dim0=0, dim1=1):
     return ax
 
 
-def plot_clf_metrics(results):
+def plot_clf_metrics(results, return_res=False):
     f, ax = plt.subplots(2, 2, figsize=(12, 7))
     plt.subplots_adjust(right=0.75, left=0.1)
+    sizes, f1, auc, sensitivity, specificity = [], [], [], [], []
 
     for learner, res in list(results.items()):
         sizes, f1, auc, sensitivity, specificity = [], [], [], [], []
@@ -78,6 +79,9 @@ def plot_clf_metrics(results):
 
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     # plt.show()
+    if return_res:
+        return f, f1, auc, sensitivity, specificity
+
     return f
 
 

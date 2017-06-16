@@ -70,21 +70,21 @@ def run_experiments_hold_out(n_samples=1000, n_test_samples=500, out_path="tmp",
     """
     data, learners = None, []
     results = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+
+    if not os.path.isdir(out_path):
+        os.mkdir(out_path)
+
     for run in range(num_runs):
         print("\n********\non run {}".format(run))
 
         num_labels_so_far = initial_size  # set to initial size for first iteration
-
-        if not os.path.isdir(out_path):
-            os.mkdir(out_path)
-
         # Set up the learners, add to list. Here is where you would instantiate new learners.
         # data, learners = _init_learners_lindley_versions(n_samples)
-        data, learners = _init_learners_clf_all(n_samples)
-        # data, learners = _init_learners_reg_all(n_samples)
+        # data, learners = _init_learners_clf_all(n_samples)
+        data, learners = _init_learners_reg_all(n_samples)
 
-        #data, test_data = data.train_test_split(n_test_samples=n_test_samples)
-        test_data = data
+        data, test_data = data.train_test_split(n_test_samples=n_test_samples)
+        #test_data = data
         total_num_examples = len(data.X)
 
         if upto is None:
@@ -94,7 +94,7 @@ def run_experiments_hold_out(n_samples=1000, n_test_samples=500, out_path="tmp",
 
         print("using {} out of {} instances for test set".format(hold_out_size, total_num_examples))
 
-        output_files = [open("{}//{}_{}.txt".format(out_path, learner.name, run), 'w') for learner in learners]
+        # output_files = [open("{}//{}_{}.txt".format(out_path, learner.name, run), 'w') for learner in learners]
 
         # arbitrarily pick the initial ids from the first learner
         initial_f = learners[0].get_random_unlabeled_ids
@@ -113,7 +113,7 @@ def run_experiments_hold_out(n_samples=1000, n_test_samples=500, out_path="tmp",
             learner.rebuild_model()
 
         # report initial results, to console and file.
-        results = report_results(learners, test_data, num_labels_so_far, output_files, results)
+        results = report_results(learners, test_data, num_labels_so_far, results)
         print(results.keys())
         first_iter = True
         while num_labels_so_far <= upto - step_size:
@@ -141,11 +141,13 @@ def run_experiments_hold_out(n_samples=1000, n_test_samples=500, out_path="tmp",
             num_labels_so_far += cur_step_size
             print("\n*** labeled {} examples out of {} so far ***".format(num_labels_so_far, upto))
 
-            results = report_results(learners, test_data, num_labels_so_far, output_files, results)
+            results = report_results(learners, test_data, num_labels_so_far, results)
         # close files
-        [f.close() for f in output_files]
+        # [f.close() for f in output_files]
 
     report_final_results(data, learners, results, out_path)
+
+    return results
 
 
 def report_final_results(data, learners, results, out_path):
@@ -174,7 +176,7 @@ def report_final_results(data, learners, results, out_path):
     # FIXIT add .tex report
 
 
-def report_results(learners, test_dataset, cur_size, output_files, results):
+def report_results(learners, test_dataset, cur_size, results):
     """
     Writes results for the learners, as evaluated over the test_dataset, to the console and the parametric
     output files.
@@ -311,4 +313,9 @@ def _init_learners_lindley_versions(n_samples):
 
 
 if __name__ == "__main__":
-    run_experiments_hold_out(n_samples=1000, num_runs=20, upto=200, initial_size=4, step_size=10)
+    init_sizes = np.arange(2, 20, 2)
+    for init_size in init_sizes:
+        out_path = "tmp/" + str(init_size) + "/"
+        run_experiments_hold_out(n_samples=1000, num_runs=20, upto=200, out_path=out_path,
+                                 initial_size=init_size, step_size=10)
+

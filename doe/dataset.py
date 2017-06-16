@@ -157,7 +157,7 @@ class Dataset:
         return len(self.get_examples_from_cls(cls=cls))
 
     def train_test_split(self, test_ratio=0.25, n_test_samples=None):
-        if n_test_samples is not n_test_samples:
+        if n_test_samples is not None:
             n_test_samples = np.round(len(self.y) * test_ratio)
 
         train_data = Dataset(self.X[:-n_test_samples], self.y[:-n_test_samples], name=self.name, type=self.type)
